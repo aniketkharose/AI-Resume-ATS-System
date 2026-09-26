@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 .env
 uploads/
+tests/test_ats_report.pdf
