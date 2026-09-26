@@ -142,6 +142,15 @@ class FeedbackEngine:
     def get_missing_skills(self) -> list[dict[str, Any]]:
         """
         Return skills from the JD that were not matched.
+
+        HybridMatcher stores JD importance as:
+            required
+            preferred
+            general
+
+        Feedback Engine exposes the same value as priority
+        because the feedback/recommendation layer uses the
+        term "priority".
         """
 
         results = self.hybrid_result.get(
@@ -155,18 +164,22 @@ class FeedbackEngine:
 
             if item.get("status") == "missing":
 
+                importance = item.get(
+                    "importance",
+                    "general",
+                )
+
                 missing_skills.append(
                     {
                         "skill": item.get(
                             "jd_skill"
                         ),
+
                         "category": item.get(
                             "category"
                         ),
-                        "priority": item.get(
-                            "priority",
-                            "general"
-                        ),
+
+                        "priority": importance,
                     }
                 )
 
