@@ -1,0 +1,510 @@
+from typing import Any
+
+
+# ============================================================
+# ATS SCORING WEIGHTS
+# ============================================================
+#
+# These are our project-level engineering weights.
+# They are NOT official industry-standard ATS weights.
+#
+# Required skills     -> most important
+# Preferred skills   -> useful but less important
+# Semantic relevance  -> gives partial credit for related skills
+# Resume structure   -> checks basic resume organization
+# Content quality    -> checks whether enough useful content exists
+#
+
+ATS_WEIGHTS = {
+    "required_skills": 50,
+    "preferred_skills": 15,
+    "semantic_relevance": 10,
+    "resume_structure": 15,
+    "content_completeness": 10,
+}
+
+
+# ============================================================
+# UTILITY
+# ============================================================
+
+def clamp_score(score: float) -> float:
+    """
+    Keep a score between 0 and 100.
+    """
+
+    return max(
+        0.0,
+        min(100.0, float(score))
+    )
+
+
+# ============================================================
+# 1. REQUIRED SKILLS SCORE
+# ============================================================
+
+def calculate_required_skill_score(
+    hybrid_result: dict[str, Any],
+) -> float:
+    """
+    Calculate how many required JD skills
+    are matched by the resume.
+
+    Example:
+
+    Required skills = 10
+    Matched skills  = 8
+
+    Score = 80
+    """
+
+    required = hybrid_result.get(
+        "required",
+        {}
+    )
+
+    total = required.get(
+        "total",
+        0
+    )
+
+    matched = required.get(
+        "matched",
+        0
+    )
+
+    if total == 0:
+        return 100.0
+
+    score = (
+        matched / total
+    ) * 100
+
+    return clamp_score(score)
+
+
+# ============================================================
+# 2. PREFERRED SKILLS SCORE
+# ============================================================
+
+def calculate_preferred_skill_score(
+    hybrid_result: dict[str, Any],
+) -> float:
+    """
+    Calculate how many preferred JD skills
+    are matched by the resume.
+    """
+
+    preferred = hybrid_result.get(
+        "preferred",
+        {}
+    )
+
+    total = preferred.get(
+        "total",
+        0
+    )
+
+    matched = preferred.get(
+        "matched",
+        0
+    )
+
+    if total == 0:
+        return 100.0
+
+    score = (
+        matched / total
+    ) * 100
+
+    return clamp_score(score)
+
+
+# ============================================================
+# 3. SEMANTIC RELEVANCE SCORE
+# ============================================================
+
+def calculate_semantic_relevance_score(
+    hybrid_result: dict[str, Any],
+) -> float:
+    """
+    Calculate semantic relevance using
+    only semantic and related matches.
+
+    IMPORTANT:
+
+    Exact matches are NOT counted here.
+
+    Why?
+
+    Because exact matches are already counted
+    in required/preferred skill coverage.
+
+    This prevents double-counting.
+    """
+
+    results = hybrid_result.get(
+        "results",
+        []
+    )
+
+    semantic_scores = []
+
+    for item in results:
+
+        match_type = item.get(
+            "match_type"
+        )
+
+        similarity = float(
+            item.get(
+                "similarity",
+                0.0
+            )
+        )
+
+        # ----------------------------------------------------
+        # Exact match
+        # ----------------------------------------------------
+        #
+        # Do NOT count exact matches again.
+        #
+        if match_type == "exact":
+            continue
+
+        # ----------------------------------------------------
+        # Semantic match
+        # ----------------------------------------------------
+        if match_type == "semantic":
+
+            semantic_scores.append(
+                similarity
+            )
+
+        # ----------------------------------------------------
+        # Related match
+        # ----------------------------------------------------
+        #
+        # Related skills get partial credit.
+        #
+        elif match_type == "related":
+
+            semantic_scores.append(
+                similarity * 0.5
+            )
+
+    if not semantic_scores:
+        return 0.0
+
+    average_similarity = (
+        sum(semantic_scores)
+        / len(semantic_scores)
+    )
+
+    return clamp_score(
+        average_similarity * 100
+    )
+
+
+# ============================================================
+# 4. RESUME STRUCTURE SCORE
+# ============================================================
+
+def calculate_resume_structure_score(
+    resume_analysis: dict[str, Any],
+) -> float:
+    """
+    Check whether the resume contains
+    important structural sections.
+
+    Expected:
+
+    - Skills
+    - Education
+    - Experience
+    - Projects
+    """
+
+    nlp_data = resume_analysis.get(
+        "nlp",
+        {}
+    )
+
+    sections = nlp_data.get(
+        "sections",
+        {}
+    )
+
+    expected_sections = [
+        "skills",
+        "education",
+        "experience",
+        "projects",
+    ]
+
+    found_sections = 0
+
+    for section in expected_sections:
+
+        section_data = sections.get(
+            section
+        )
+
+        if section_data:
+
+            found_sections += 1
+
+    score = (
+        found_sections
+        / len(expected_sections)
+    ) * 100
+
+    return clamp_score(score)
+
+
+# ============================================================
+# 5. CONTENT COMPLETENESS SCORE
+# ============================================================
+
+def calculate_content_completeness_score(
+    resume_analysis: dict[str, Any],
+) -> float:
+    """
+    Check whether the resume contains
+    enough meaningful content.
+
+    Four checks:
+
+    1. Text length
+    2. Token count
+    3. Sentence count
+    4. Number of detected skills
+
+    Each contributes 25%.
+    """
+
+    raw_text = resume_analysis.get(
+        "raw_text",
+        ""
+    )
+
+    nlp_data = resume_analysis.get(
+        "nlp",
+        {}
+    )
+
+    token_count = nlp_data.get(
+        "token_count",
+        0
+    )
+
+    sentence_count = nlp_data.get(
+        "sentence_count",
+        0
+    )
+
+    skills = resume_analysis.get(
+        "skills",
+        []
+    )
+
+    score = 0.0
+
+    # --------------------------------------------------------
+    # Check 1: meaningful text
+    # --------------------------------------------------------
+
+    if len(raw_text.strip()) >= 500:
+
+        score += 25
+
+    # --------------------------------------------------------
+    # Check 2: token count
+    # --------------------------------------------------------
+
+    if token_count >= 100:
+
+        score += 25
+
+    # --------------------------------------------------------
+    # Check 3: sentence count
+    # --------------------------------------------------------
+
+    if sentence_count >= 5:
+
+        score += 25
+
+    # --------------------------------------------------------
+    # Check 4: skills
+    # --------------------------------------------------------
+
+    if len(skills) >= 3:
+
+        score += 25
+
+    return clamp_score(score)
+
+
+# ============================================================
+# MAIN ATS SCORE
+# ============================================================
+
+def calculate_ats_score(
+    resume_analysis: dict[str, Any],
+    hybrid_result: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Calculate final ATS score.
+
+    Pipeline:
+
+        Required Skills
+              +
+        Preferred Skills
+              +
+        Semantic Relevance
+              +
+        Resume Structure
+              +
+        Content Completeness
+              ↓
+        Final ATS Score
+    """
+
+    # ========================================================
+    # COMPONENT 1
+    # ========================================================
+
+    required_score = (
+        calculate_required_skill_score(
+            hybrid_result
+        )
+    )
+
+    # ========================================================
+    # COMPONENT 2
+    # ========================================================
+
+    preferred_score = (
+        calculate_preferred_skill_score(
+            hybrid_result
+        )
+    )
+
+    # ========================================================
+    # COMPONENT 3
+    # ========================================================
+
+    semantic_score = (
+        calculate_semantic_relevance_score(
+            hybrid_result
+        )
+    )
+
+    # ========================================================
+    # COMPONENT 4
+    # ========================================================
+
+    structure_score = (
+        calculate_resume_structure_score(
+            resume_analysis
+        )
+    )
+
+    # ========================================================
+    # COMPONENT 5
+    # ========================================================
+
+    completeness_score = (
+        calculate_content_completeness_score(
+            resume_analysis
+        )
+    )
+
+    # ========================================================
+    # COMPONENT SCORES
+    # ========================================================
+
+    components = {
+
+        "required_skills": round(
+            required_score,
+            2,
+        ),
+
+        "preferred_skills": round(
+            preferred_score,
+            2,
+        ),
+
+        "semantic_relevance": round(
+            semantic_score,
+            2,
+        ),
+
+        "resume_structure": round(
+            structure_score,
+            2,
+        ),
+
+        "content_completeness": round(
+            completeness_score,
+            2,
+        ),
+    }
+
+    # ========================================================
+    # WEIGHTED CONTRIBUTION
+    # ========================================================
+
+    weighted_contribution = {}
+
+    for component_name, weight in ATS_WEIGHTS.items():
+
+        contribution = (
+            components[component_name]
+            * weight
+            / 100
+        )
+
+        weighted_contribution[
+            component_name
+        ] = round(
+            contribution,
+            2,
+        )
+
+    # ========================================================
+    # FINAL SCORE
+    # ========================================================
+
+    final_score = sum(
+        weighted_contribution.values()
+    )
+
+    final_score = clamp_score(
+        final_score
+    )
+
+    # ========================================================
+    # FINAL RESULT
+    # ========================================================
+
+    return {
+
+        # Expected by current test
+        "ats_score": round(
+            final_score,
+            2,
+        ),
+
+        # Component scores
+        "components": components,
+
+        # Weight of each component
+        "weights": ATS_WEIGHTS,
+
+        # Actual contribution to final score
+        "weighted_contribution":
+            weighted_contribution,
+    }
