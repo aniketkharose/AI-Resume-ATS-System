@@ -67,10 +67,60 @@ def normalize_jd_text(text: str) -> str:
     )
 
     # Normalize spaces
-    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(
+        r"[ \t]+",
+        " ",
+        text,
+    )
 
     # Remove excessive blank lines
-    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(
+        r"\n{3,}",
+        "\n\n",
+        text,
+    )
+
+    return text.strip()
+
+
+# ============================================================
+# HEADING NORMALIZATION
+# ============================================================
+
+def normalize_heading(text: str) -> str:
+    """
+    Normalize a JD section heading.
+
+    Handles headings such as:
+
+    Required Skills
+    Required Skills:
+    REQUIRED SKILLS:
+    - Required Skills:
+    """
+
+    text = text.strip().lower()
+
+    # Remove leading bullet characters
+    text = re.sub(
+        r"^[\-•●▪❖➢➤►\s]+",
+        "",
+        text,
+    )
+
+    # Remove trailing colon
+    text = re.sub(
+        r":+$",
+        "",
+        text,
+    )
+
+    # Normalize repeated spaces
+    text = re.sub(
+        r"\s+",
+        " ",
+        text,
+    )
 
     return text.strip()
 
@@ -91,6 +141,17 @@ def detect_jd_sections(text: str) -> dict:
 
     normalized_text = normalize_jd_text(text)
 
+    # Create normalized heading lookup
+    normalized_heading_map = {}
+
+    for section_name, headings in SECTION_PATTERNS.items():
+
+        for heading in headings:
+
+            normalized_heading_map[
+                normalize_heading(heading)
+            ] = section_name
+
     for line in normalized_text.split("\n"):
 
         line = line.strip()
@@ -98,26 +159,16 @@ def detect_jd_sections(text: str) -> dict:
         if not line:
             continue
 
-        normalized_line = line.lower()
+        normalized_line = normalize_heading(line)
 
-        # Remove bullet characters
-        normalized_line = re.sub(
-            r"^[\-•●▪❖➢➤►\s]+",
-            "",
-            normalized_line,
-        ).strip()
-
-        matched_section = None
-
-        for section_name, headings in SECTION_PATTERNS.items():
-
-            if normalized_line in headings:
-                matched_section = section_name
-                break
+        matched_section = normalized_heading_map.get(
+            normalized_line
+        )
 
         if matched_section:
 
             if current_content:
+
                 sections[current_section] = "\n".join(
                     current_content
                 ).strip()
@@ -126,9 +177,11 @@ def detect_jd_sections(text: str) -> dict:
             current_content = []
 
         else:
+
             current_content.append(line)
 
     if current_content:
+
         sections[current_section] = "\n".join(
             current_content
         ).strip()
@@ -152,7 +205,9 @@ def extract_jd_skills(
     if not text:
         return []
 
-    normalized_text = normalize_jd_text(text).lower()
+    normalized_text = normalize_jd_text(
+        text
+    ).lower()
 
     detected_skills = []
     detected_names = set()
@@ -165,7 +220,9 @@ def extract_jd_skills(
 
             for alias in aliases:
 
-                normalized_alias = alias.lower().strip()
+                normalized_alias = (
+                    alias.lower().strip()
+                )
 
                 escaped_alias = re.escape(
                     normalized_alias
@@ -181,6 +238,7 @@ def extract_jd_skills(
                     pattern,
                     normalized_text,
                 ):
+
                     matched_alias = alias
                     break
 
@@ -198,7 +256,9 @@ def extract_jd_skills(
                 }
             )
 
-            detected_names.add(canonical_skill)
+            detected_names.add(
+                canonical_skill
+            )
 
     return detected_skills
 
@@ -230,15 +290,47 @@ def classify_jd_skills(
 
     for skill in skills:
 
-        alias = skill["matched_alias"].lower()
+        alias = skill.get(
+            "matched_alias",
+            "",
+        ).lower()
 
-        if alias in required_text:
+        canonical_skill = skill.get(
+            "skill",
+            "",
+        ).lower()
+
+        # ----------------------------------------------------
+        # Required
+        # ----------------------------------------------------
+
+        if (
+            alias
+            and alias in required_text
+        ) or (
+            canonical_skill
+            and canonical_skill in required_text
+        ):
 
             importance = "required"
 
-        elif alias in preferred_text:
+        # ----------------------------------------------------
+        # Preferred
+        # ----------------------------------------------------
+
+        elif (
+            alias
+            and alias in preferred_text
+        ) or (
+            canonical_skill
+            and canonical_skill in preferred_text
+        ):
 
             importance = "preferred"
+
+        # ----------------------------------------------------
+        # General
+        # ----------------------------------------------------
 
         else:
 
@@ -267,11 +359,14 @@ def process_job_description(
     """
 
     if not text or not text.strip():
+
         raise JDParserError(
             "Job Description cannot be empty."
         )
 
-    cleaned_text = normalize_jd_text(text)
+    cleaned_text = normalize_jd_text(
+        text
+    )
 
     sections = detect_jd_sections(
         cleaned_text
