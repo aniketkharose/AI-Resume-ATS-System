@@ -9,36 +9,46 @@ def render_home():
 
     st.markdown(
         """
-<div class="app-header">
-    <div class="brand">🧠 AI Resume <span>ATS</span></div>
-    <div class="header-badge">AI-Powered Resume Analysis</div>
-</div>
-""",
+        <div class="app-header">
+            <div class="brand">🧠 AI Resume <span>ATS</span></div>
+            <div class="header-badge">AI-Powered Resume Analysis</div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
     # ========================================================
     # HERO
     # ========================================================
+
     st.markdown(
-        '<div class="hero-badge">✨ Resume Intelligence Platform</div>',
+        """
+        <div class="hero-badge">
+            ✨ Resume Intelligence Platform
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
     st.markdown(
         """
-    # Make Your Resume
-    # <span style="color:#8b5cf6;">Job-Ready.</span>
-    """,
+        <div class="hero-title">
+            Make Your Resume<br>
+            <span>Job-Ready.</span>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
     st.markdown(
         """
-    Analyze your resume against a job description using
-    skill matching, semantic similarity and ATS scoring —
-    then get actionable recommendations to improve your resume.
-    """
+        <div class="hero-description">
+            Analyze your resume against a job description using
+            skill matching, semantic similarity and ATS scoring —
+            then get actionable recommendations to improve your resume.
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     # ========================================================
@@ -64,45 +74,45 @@ def render_home():
     with col1:
         st.markdown(
             """
-<div class="feature-card">
-    <div class="feature-icon">📊</div>
-    <div class="feature-title">ATS Score</div>
-    <div class="feature-text">
-        Get a structured ATS compatibility score based on
-        skills, relevance, resume structure and content.
-    </div>
-</div>
-""",
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <div class="feature-title">ATS Score</div>
+                <div class="feature-text">
+                    Get a structured ATS compatibility score based on
+                    skills, relevance, resume structure and content.
+                </div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
     with col2:
         st.markdown(
             """
-<div class="feature-card">
-    <div class="feature-icon">🎯</div>
-    <div class="feature-title">Skill Matching</div>
-    <div class="feature-text">
-        Identify required, preferred, matched and missing
-        skills from the target job description.
-    </div>
-</div>
-""",
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <div class="feature-title">Skill Matching</div>
+                <div class="feature-text">
+                    Identify required, preferred, matched and missing
+                    skills from the target job description.
+                </div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
     with col3:
         st.markdown(
             """
-<div class="feature-card">
-    <div class="feature-icon">💡</div>
-    <div class="feature-title">Smart Recommendations</div>
-    <div class="feature-text">
-        Receive practical recommendations to improve your
-        resume without adding skills you don't actually have.
-    </div>
-</div>
-""",
+            <div class="feature-card">
+                <div class="feature-icon">💡</div>
+                <div class="feature-title">Smart Recommendations</div>
+                <div class="feature-text">
+                    Receive practical recommendations to improve your
+                    resume without adding skills you don't actually have.
+                </div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
@@ -127,56 +137,56 @@ def render_home():
     with step1:
         st.markdown(
             """
-<div class="feature-card">
-    <div class="feature-icon">📄</div>
-    <div class="feature-title">1. Upload</div>
-    <div class="feature-text">
-        Upload your resume in PDF or DOCX format.
-    </div>
-</div>
-""",
+            <div class="feature-card">
+                <div class="feature-icon">📄</div>
+                <div class="feature-title">1. Upload</div>
+                <div class="feature-text">
+                    Upload your resume in PDF or DOCX format.
+                </div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
     with step2:
         st.markdown(
             """
-<div class="feature-card">
-    <div class="feature-icon">🧠</div>
-    <div class="feature-title">2. Analyze</div>
-    <div class="feature-text">
-        Extract skills, sections and resume information.
-    </div>
-</div>
-""",
+            <div class="feature-card">
+                <div class="feature-icon">🧠</div>
+                <div class="feature-title">2. Analyze</div>
+                <div class="feature-text">
+                    Extract skills, sections and resume information.
+                </div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
     with step3:
         st.markdown(
             """
-<div class="feature-card">
-    <div class="feature-icon">🎯</div>
-    <div class="feature-title">3. Match</div>
-    <div class="feature-text">
-        Compare your resume with the target job description.
-    </div>
-</div>
-""",
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <div class="feature-title">3. Match</div>
+                <div class="feature-text">
+                    Compare your resume with the target job description.
+                </div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
     with step4:
         st.markdown(
             """
-<div class="feature-card">
-    <div class="feature-icon">🚀</div>
-    <div class="feature-title">4. Improve</div>
-    <div class="feature-text">
-        Get an ATS score, feedback and improvement suggestions.
-    </div>
-</div>
-""",
+            <div class="feature-card">
+                <div class="feature-icon">🚀</div>
+                <div class="feature-title">4. Improve</div>
+                <div class="feature-text">
+                    Get an ATS score, feedback and improvement suggestions.
+                </div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
@@ -184,34 +194,29 @@ def render_home():
     # CTA
     # ========================================================
 
-    st.markdown(
-        """
-<div class="cta-box">
-    <div class="cta-title">Ready to analyze your resume?</div>
-
-    <div class="cta-text">
-        Upload your resume and compare it with your target
-        job description to get actionable insights.
-    </div>
-</div>
-""",
-        unsafe_allow_html=True,
+    cta_html = (
+        '<div class="cta-box">'
+        '<div class="cta-title">Ready to analyze your resume?</div>'
+        '<div class="cta-text">'
+        'Upload your resume and compare it with your target '
+        'job description to get actionable insights.'
+        '</div>'
+        '</div>'
     )
 
+    st.markdown(
+        cta_html,
+        unsafe_allow_html=True,
+    )
     # ========================================================
     # FOOTER
     # ========================================================
 
     st.markdown(
         """
-<div style="
-    text-align:center;
-    margin-top:45px;
-    color:#475569;
-    font-size:0.8rem;
-">
-    AI Resume ATS • Built with FastAPI + Streamlit + NLP
-</div>
-""",
+        <div class="home-footer">
+            AI Resume ATS • Built with FastAPI + Streamlit + NLP
+        </div>
+        """,
         unsafe_allow_html=True,
     )

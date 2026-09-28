@@ -28,6 +28,18 @@ from frontend.views.history import render_history
 from frontend.views.analysis_detail import render_analysis_detail
 from frontend.views.analyze import render_analyze
 from frontend.views.home import render_home
+from frontend.views.profile import render_profile
+
+# ============================================================
+# PAGE CONFIGURATION
+# ============================================================
+
+st.set_page_config(
+    page_title="AI Resume ATS",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 # ============================================================
 # AUTHENTICATION STATE
@@ -246,16 +258,6 @@ if st.session_state["user"] is None:
     st.stop()
     
     
-# ============================================================
-# PAGE CONFIGURATION
-# ============================================================
-
-st.set_page_config(
-    page_title="AI Resume ATS",
-    page_icon="🧠",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
 
 # ============================================================
 # NAVIGATION
@@ -288,6 +290,13 @@ with st.sidebar:
         st.session_state["current_page"] = "history"
         st.rerun()
 
+    if st.button(
+        "👤 Profile",
+        use_container_width=True,
+    ):
+        st.session_state["current_page"] = "profile"
+        st.rerun()
+        
     st.markdown("---")
 
     user = st.session_state.get("user")
@@ -351,13 +360,10 @@ st.markdown(
 
     /* ---------- Hero ---------- */
 
-    .hero {
-        text-align: center;
-        padding: 75px 20px 55px 20px;
-    }
-
     .hero-badge {
-        display: inline-block;
+        display: block;
+        width: fit-content;
+        margin: 70px auto 22px auto;
         padding: 8px 16px;
         border-radius: 999px;
         background: rgba(124, 58, 237, 0.12);
@@ -365,25 +371,26 @@ st.markdown(
         color: #c4b5fd;
         font-size: 0.85rem;
         font-weight: 600;
-        margin-bottom: 22px;
     }
 
-    .hero h1 {
+    .hero-title {
+        text-align: center;
         font-size: 4rem;
         line-height: 1.05;
         font-weight: 800;
         letter-spacing: -2px;
-        margin: 0;
         color: #ffffff;
+        margin: 0;
     }
 
-    .hero h1 span {
+    .hero-title span {
         color: #8b5cf6;
     }
 
-    .hero p {
+    .hero-description {
         max-width: 720px;
         margin: 22px auto 0 auto;
+        text-align: center;
         font-size: 1.15rem;
         line-height: 1.7;
         color: #94a3b8;
@@ -505,6 +512,9 @@ if st.session_state["current_page"] == "home":
     render_home()
     st.stop()
 
+if st.session_state["current_page"] == "profile":
+    render_profile()
+    st.stop()
 
 # ============================================================
 # FOOTER
