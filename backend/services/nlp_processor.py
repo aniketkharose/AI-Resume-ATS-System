@@ -1,5 +1,4 @@
 import re
-import spacy
 
 from backend.core.config import SPACY_MODEL
 
@@ -9,13 +8,40 @@ class NLPProcessorError(Exception):
 
 
 class NLPProcessor:
+    """
+    Memory-optimized spaCy NLP processor.
+
+    spaCy itself and the NLP model are loaded lazily.
+    This keeps FastAPI startup lightweight.
+    """
+
     def __init__(self):
-        try:
-            self.nlp = spacy.load(SPACY_MODEL)
-        except OSError as error:
-            raise NLPProcessorError(
-                f"spaCy model '{SPACY_MODEL}' is not installed."
-            ) from error
+        self.nlp = None
+
+    def _get_nlp(self):
+        """
+        Lazily load spaCy and the configured language model.
+
+        The model is loaded only when resume processing is requested.
+        """
+
+        if self.nlp is None:
+            try:
+                import spacy
+
+                self.nlp = spacy.load(SPACY_MODEL)
+
+            except OSError as error:
+                raise NLPProcessorError(
+                    f"spaCy model '{SPACY_MODEL}' is not installed."
+                ) from error
+
+            except Exception as error:
+                raise NLPProcessorError(
+                    "Failed to load spaCy NLP model."
+                ) from error
+
+        return self.nlp
 
     def clean_text(self, text: str) -> str:
         """Clean extracted resume text."""
@@ -105,11 +131,15 @@ class NLPProcessor:
         """Process resume text using spaCy."""
 
         if not text or not text.strip():
-            raise NLPProcessorError("Resume text cannot be empty.")
+            raise NLPProcessorError(
+                "Resume text cannot be empty."
+            )
 
         cleaned_text = self.clean_text(text)
 
-        doc = self.nlp(cleaned_text)
+        nlp = self._get_nlp()
+
+        doc = nlp(cleaned_text)
 
         tokens = [
             token.text
@@ -144,8 +174,17 @@ class NLPProcessor:
         }
 
 
-def process_resume_text(text: str) -> dict:
-    """Convenience function for processing resume text."""
+# One shared processor instance.
+# The actual spaCy model remains lazy-loaded.
+_default_processor = NLPProcessor()
 
-    processor = NLPProcessor()
-    return processor.process(text)
+
+def process_resume_text(text: str) -> dict:
+    """
+    Convenience function for processing resume text.
+
+    Reuses one NLPProcessor instead of creating a new
+    processor/model for every request.
+    """
+
+    return _default_processor.process(text)
