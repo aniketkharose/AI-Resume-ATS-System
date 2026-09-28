@@ -1,6 +1,5 @@
 from typing import Any
 
-from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from backend.core.config import SENTENCE_TRANSFORMER_MODEL
@@ -11,15 +10,41 @@ class SemanticMatcherError(Exception):
 
 
 class SemanticMatcher:
+    """
+    Memory-optimized semantic matcher.
+
+    The Sentence Transformer model is loaded lazily:
+    it is NOT loaded when the FastAPI application starts.
+
+    The model is loaded only when semantic matching is actually required.
+    """
+
     def __init__(self):
-        try:
-            self.model = SentenceTransformer(
-                SENTENCE_TRANSFORMER_MODEL
-            )
-        except Exception as error:
-            raise SemanticMatcherError(
-                "Failed to load the Sentence Transformer model."
-            ) from error
+        self.model = None
+
+    def _get_model(self):
+        """
+        Lazily load the Sentence Transformer model.
+
+        This prevents PyTorch + Sentence Transformer from consuming
+        memory during FastAPI startup.
+        """
+
+        if self.model is None:
+            try:
+                from sentence_transformers import SentenceTransformer
+
+                self.model = SentenceTransformer(
+                    SENTENCE_TRANSFORMER_MODEL,
+                    device="cpu",
+                )
+
+            except Exception as error:
+                raise SemanticMatcherError(
+                    "Failed to load the Sentence Transformer model."
+                ) from error
+
+        return self.model
 
     def calculate_similarity(
         self,
@@ -28,26 +53,31 @@ class SemanticMatcher:
     ) -> float:
         """
         Calculate cosine similarity between two pieces of text.
+
         Returns a value between 0 and 1.
         """
 
         if not text_a or not text_b:
             return 0.0
 
-        embeddings = self.model.encode(
+        model = self._get_model()
+
+        embeddings = model.encode(
             [text_a, text_b],
             convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
         )
 
-        similarity = cosine_similarity(
-            [embeddings[0]],
-            [embeddings[1]],
-        )[0][0]
+        # Since embeddings are normalized,
+        # cosine similarity is simply their dot product.
+        similarity = float(
+            embeddings[0] @ embeddings[1]
+        )
 
-        # Numerical safety
         similarity = max(
             0.0,
-            min(1.0, float(similarity)),
+            min(1.0, similarity),
         )
 
         return round(similarity, 4)
@@ -62,8 +92,8 @@ class SemanticMatcher:
         Compare every JD skill against resume skills.
 
         Exact matching is handled separately.
-        This method is intended to discover semantic
-        relationships between skills.
+        This method discovers semantic relationships
+        between skills.
         """
 
         if not resume_skills:
@@ -87,27 +117,32 @@ class SemanticMatcher:
         if not resume_names or not jd_names:
             return []
 
-        # Generate embeddings once instead of repeatedly.
-        resume_embeddings = self.model.encode(
+        model = self._get_model()
+
+        # Generate embeddings once.
+        resume_embeddings = model.encode(
             resume_names,
             convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
         )
 
-        jd_embeddings = self.model.encode(
+        jd_embeddings = model.encode(
             jd_names,
             convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
         )
 
-        similarity_matrix = cosine_similarity(
-            jd_embeddings,
-            resume_embeddings,
+        # Because embeddings are normalized,
+        # matrix multiplication gives cosine similarity.
+        similarity_matrix = (
+            jd_embeddings @ resume_embeddings.T
         )
 
         results = []
 
-        for jd_index, jd_skill in enumerate(
-            jd_skills
-        ):
+        for jd_index, jd_skill in enumerate(jd_skills):
 
             best_resume_index = similarity_matrix[
                 jd_index
@@ -151,17 +186,23 @@ class SemanticMatcher:
         return results
 
 
+# One shared matcher instance.
+# The actual ML model is still loaded lazily.
+_default_matcher = SemanticMatcher()
+
+
 def semantic_similarity(
     text_a: str,
     text_b: str,
 ) -> float:
     """
     Convenience function for comparing two texts.
+
+    Uses one shared SemanticMatcher instance instead
+    of creating/loading a new matcher every time.
     """
 
-    matcher = SemanticMatcher()
-
-    return matcher.calculate_similarity(
+    return _default_matcher.calculate_similarity(
         text_a,
         text_b,
     )
