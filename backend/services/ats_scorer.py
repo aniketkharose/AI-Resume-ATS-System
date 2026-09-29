@@ -4,16 +4,9 @@ from typing import Any
 # ============================================================
 # ATS SCORING WEIGHTS
 # ============================================================
-#
+
 # These are our project-level engineering weights.
 # They are NOT official industry-standard ATS weights.
-#
-# Required skills     -> most important
-# Preferred skills   -> useful but less important
-# Semantic relevance  -> gives partial credit for related skills
-# Resume structure   -> checks basic resume organization
-# Content quality    -> checks whether enough useful content exists
-#
 
 ATS_WEIGHTS = {
     "required_skills": 50,
@@ -29,14 +22,34 @@ ATS_WEIGHTS = {
 # ============================================================
 
 def clamp_score(score: float) -> float:
-    """
-    Keep a score between 0 and 100.
-    """
+    """Keep a score between 0 and 100."""
 
     return max(
         0.0,
         min(100.0, float(score))
     )
+
+
+# ============================================================
+# MATCH STATUS HELPER
+# ============================================================
+
+def is_matched(match_type: str | None) -> bool:
+    """
+    Decide whether a JD skill has been matched.
+
+    Exact      -> full match
+    Semantic   -> semantic match
+    Related    -> partial/related match
+
+    Missing    -> not matched
+    """
+
+    return match_type in {
+        "exact",
+        "semantic",
+        "related",
+    }
 
 
 # ============================================================
@@ -47,34 +60,35 @@ def calculate_required_skill_score(
     hybrid_result: dict[str, Any],
 ) -> float:
     """
-    Calculate how many required JD skills
-    are matched by the resume.
+    Calculate required skill coverage directly
+    from the hybrid matching results.
 
     Example:
 
-    Required skills = 10
-    Matched skills  = 8
+    Required skills = 11
+    Matched skills  = 9
 
-    Score = 80
+    Score = 81.82
     """
 
-    required = hybrid_result.get(
-        "required",
-        {}
-    )
+    results = hybrid_result.get("results", [])
 
-    total = required.get(
-        "total",
-        0
-    )
+    required_results = [
+        item
+        for item in results
+        if item.get("importance") == "required"
+    ]
 
-    matched = required.get(
-        "matched",
-        0
-    )
+    total = len(required_results)
 
     if total == 0:
         return 100.0
+
+    matched = sum(
+        1
+        for item in required_results
+        if is_matched(item.get("match_type"))
+    )
 
     score = (
         matched / total
@@ -91,27 +105,35 @@ def calculate_preferred_skill_score(
     hybrid_result: dict[str, Any],
 ) -> float:
     """
-    Calculate how many preferred JD skills
-    are matched by the resume.
+    Calculate preferred skill coverage directly
+    from the hybrid matching results.
+
+    Example:
+
+    Preferred skills = 5
+    Matched skills   = 3
+
+    Score = 60
     """
 
-    preferred = hybrid_result.get(
-        "preferred",
-        {}
-    )
+    results = hybrid_result.get("results", [])
 
-    total = preferred.get(
-        "total",
-        0
-    )
+    preferred_results = [
+        item
+        for item in results
+        if item.get("importance") == "preferred"
+    ]
 
-    matched = preferred.get(
-        "matched",
-        0
-    )
+    total = len(preferred_results)
 
     if total == 0:
         return 100.0
+
+    matched = sum(
+        1
+        for item in preferred_results
+        if is_matched(item.get("match_type"))
+    )
 
     score = (
         matched / total
@@ -129,18 +151,10 @@ def calculate_semantic_relevance_score(
 ) -> float:
     """
     Calculate semantic relevance using
-    only semantic and related matches.
+    semantic and related matches only.
 
-    IMPORTANT:
-
-    Exact matches are NOT counted here.
-
-    Why?
-
-    Because exact matches are already counted
-    in required/preferred skill coverage.
-
-    This prevents double-counting.
+    Exact matches are excluded because they are
+    already counted in required/preferred coverage.
     """
 
     results = hybrid_result.get(
@@ -166,15 +180,14 @@ def calculate_semantic_relevance_score(
         # ----------------------------------------------------
         # Exact match
         # ----------------------------------------------------
-        #
-        # Do NOT count exact matches again.
-        #
+
         if match_type == "exact":
             continue
 
         # ----------------------------------------------------
         # Semantic match
         # ----------------------------------------------------
+
         if match_type == "semantic":
 
             semantic_scores.append(
@@ -184,9 +197,7 @@ def calculate_semantic_relevance_score(
         # ----------------------------------------------------
         # Related match
         # ----------------------------------------------------
-        #
-        # Related skills get partial credit.
-        #
+
         elif match_type == "related":
 
             semantic_scores.append(
@@ -251,7 +262,6 @@ def calculate_resume_structure_score(
         )
 
         if section_data:
-
             found_sections += 1
 
     score = (
@@ -315,7 +325,6 @@ def calculate_content_completeness_score(
     # --------------------------------------------------------
 
     if len(raw_text.strip()) >= 500:
-
         score += 25
 
     # --------------------------------------------------------
@@ -323,7 +332,6 @@ def calculate_content_completeness_score(
     # --------------------------------------------------------
 
     if token_count >= 100:
-
         score += 25
 
     # --------------------------------------------------------
@@ -331,7 +339,6 @@ def calculate_content_completeness_score(
     # --------------------------------------------------------
 
     if sentence_count >= 5:
-
         score += 25
 
     # --------------------------------------------------------
@@ -339,7 +346,6 @@ def calculate_content_completeness_score(
     # --------------------------------------------------------
 
     if len(skills) >= 3:
-
         score += 25
 
     return clamp_score(score)
@@ -492,19 +498,15 @@ def calculate_ats_score(
 
     return {
 
-        # Expected by current test
         "ats_score": round(
             final_score,
             2,
         ),
 
-        # Component scores
         "components": components,
 
-        # Weight of each component
         "weights": ATS_WEIGHTS,
 
-        # Actual contribution to final score
         "weighted_contribution":
             weighted_contribution,
     }

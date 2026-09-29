@@ -231,31 +231,172 @@ def render_analyze():
     # ANALYZE BUTTON
     # =========================================================
 
-    is_ready = bool(uploaded_resume and job_description.strip())
+    # =========================================================
+    # ANALYZE BUTTON
+    # =========================================================
 
-    if is_ready:
+    has_resume = uploaded_resume is not None
+    has_job_description = bool(job_description.strip())
+
+    # ---------------------------------------------------------
+    # Status message
+    # ---------------------------------------------------------
+
+    if has_resume and has_job_description:
+
         st.markdown(
-            '<div class="an-ready">Everything looks good. Click <b>Analyze</b> to continue.</div>',
+            '<div class="an-ready">'
+            'Everything looks good. Click <b>Analyze Resume</b> to continue.'
+            '</div>',
             unsafe_allow_html=True,
         )
+
     else:
+
         st.markdown(
-            '<div class="an-ready">Upload your resume and enter a job description to continue.</div>',
+            '<div class="an-ready">'
+            'Upload your resume and enter a job description to continue.'
+            '</div>',
             unsafe_allow_html=True,
         )
+
+
+    # ---------------------------------------------------------
+    # Analyze button
+    # ---------------------------------------------------------
 
     _, btn_col, _ = st.columns([1, 2, 1])
 
     with btn_col:
+
         clicked = st.button(
             "🚀 Analyze Resume",
             use_container_width=True,
             type="primary",
-            disabled=not is_ready,
             key="analyze_btn",
         )
 
-    if clicked and is_ready:
+
+    # ---------------------------------------------------------
+    # Button validation
+    # ---------------------------------------------------------
+
+    if clicked:
+
+        # Resume missing
+        if not has_resume:
+
+            st.error(
+                "📄 Please upload your resume before starting the analysis."
+            )
+
+        # Job description missing
+        elif not has_job_description:
+
+            st.error(
+                "💼 Please enter the job description before starting the analysis."
+            )
+
+        # Everything is ready
+        else:
+
+            with st.spinner("Analyzing your resume..."):
+
+                try:
+
+                    # -------------------------------------------------
+                    # CALL FASTAPI
+                    # -------------------------------------------------
+
+                    result = analyze_resume(
+                        resume_file=uploaded_resume,
+                        job_description=job_description,
+                        use_groq=True,
+                    )
+
+                    # -------------------------------------------------
+                    # SAVE RESULT IN SESSION
+                    # -------------------------------------------------
+
+                    st.session_state["analysis_result"] = result
+
+                    # -------------------------------------------------
+                    # SAVE RESULT TO SUPABASE
+                    # -------------------------------------------------
+
+                    user = st.session_state.get("user")
+                    access_token = st.session_state.get("access_token")
+                    refresh_token = st.session_state.get("refresh_token")
+
+                    if not user:
+
+                        st.warning(
+                            "Analysis completed, "
+                            "but no logged-in user was found."
+                        )
+
+                    elif not access_token:
+
+                        st.warning(
+                            "Analysis completed, "
+                            "but authentication session was not found."
+                        )
+
+                    else:
+
+                        ats_data = result.get("ats", {})
+                        matching_data = result.get("matching", {})
+
+                        save_analysis(
+                            user_id=str(user.id),
+                            filename=uploaded_resume.name,
+                            ats_score=float(
+                                ats_data.get("ats_score", 0)
+                            ),
+                            keyword_match=float(
+                                ats_data.get("components", {}).get(
+                                    "required_skills", 0
+                                )
+                            ),
+                            missing_keywords=[
+                                skill.get("jd_skill", "")
+                                for skill in matching_data.get("missing", [])
+                                if skill.get("jd_skill")
+                            ],
+                            analysis_result=result,
+                            access_token=access_token,
+                            refresh_token=refresh_token,
+                        )
+
+                        missing_list = [
+                            skill.get("jd_skill", "")
+                            for skill in matching_data.get("missing", [])
+                            if skill.get("jd_skill")
+                        ]
+
+                        st.session_state["selected_history_analysis"] = {
+                            "filename": uploaded_resume.name,
+                            "ats_score": float(
+                                ats_data.get("ats_score", 0)
+                            ),
+                            "keyword_match": float(
+                                ats_data.get("components", {}).get(
+                                    "required_skills", 0
+                                )
+                            ),
+                            "missing_keywords": missing_list,
+                            "analysis_result": result,
+                        }
+
+                        st.session_state["current_page"] = "analysis_detail"
+
+                        st.rerun()
+
+                except Exception as e:
+
+                    st.error(
+                        f"❌ Analysis failed: {e}"
+                    )
 
         with st.spinner("Analyzing your resume..."):
 

@@ -13,9 +13,10 @@ class RecommendationEngine:
 
     Output:
         - skill recommendations
+        - semantic alignment recommendations
         - resume structure recommendations
         - content recommendations
-        - priority
+        - ATS recommendations
     """
 
     def __init__(
@@ -62,20 +63,18 @@ class RecommendationEngine:
             )
 
             if priority == "required":
-
                 importance = "high"
 
             elif priority == "preferred":
-
                 importance = "medium"
 
             else:
-
                 importance = "low"
 
             recommendations.append(
                 {
                     "type": "skill",
+                    "title": skill,
                     "skill": skill,
                     "priority": importance,
                     "recommendation": (
@@ -127,6 +126,7 @@ class RecommendationEngine:
             recommendations.append(
                 {
                     "type": "semantic_alignment",
+                    "title": f"Clarify {jd_skill}",
                     "priority": "medium",
                     "jd_skill": jd_skill,
                     "resume_skill": resume_skill,
@@ -191,7 +191,6 @@ class RecommendationEngine:
             ]:
 
                 if not sections.get(section):
-
                     missing_sections.append(
                         section.title()
                     )
@@ -199,6 +198,7 @@ class RecommendationEngine:
             recommendations.append(
                 {
                     "type": "structure",
+                    "title": "Improve Resume Structure",
                     "priority": "high",
                     "missing_sections": missing_sections,
                     "recommendation": (
@@ -242,6 +242,7 @@ class RecommendationEngine:
             recommendations.append(
                 {
                     "type": "content",
+                    "title": "Improve Resume Content",
                     "priority": "medium",
                     "recommendation": (
                         "The resume may need more "
@@ -266,8 +267,12 @@ class RecommendationEngine:
         self,
     ) -> list[dict[str, Any]]:
         """
-        Generate recommendations based on
-        the overall ATS score.
+        Generate ATS recommendations only when there is
+        a meaningful score-related issue.
+
+        Each recommendation has a proper title so the
+        frontend does not display "Recommendation 1",
+        "Recommendation 2", etc.
         """
 
         recommendations = []
@@ -277,37 +282,147 @@ class RecommendationEngine:
             0,
         )
 
-        if ats_score < 60:
+        components = self.ats_result.get(
+            "components",
+            {},
+        )
+
+        required_score = components.get(
+            "required_skills",
+            0,
+        )
+
+        preferred_score = components.get(
+            "preferred_skills",
+            0,
+        )
+
+        structure_score = components.get(
+            "resume_structure",
+            0,
+        )
+
+        content_score = components.get(
+            "content_completeness",
+            0,
+        )
+
+        # --------------------------------------------------------
+        # 1. Required skills
+        # --------------------------------------------------------
+
+        if required_score < 75:
 
             recommendations.append(
                 {
                     "type": "ats",
+                    "title": "Improve Required Skill Coverage",
                     "priority": "high",
                     "recommendation": (
-                        "The resume has several areas "
-                        "that may need improvement."
+                        f"Required skill coverage is "
+                        f"{required_score:.0f}%. Focus on the "
+                        f"missing required skills identified above."
                     ),
                     "suggested_action": (
-                        "Focus first on required JD skills, "
-                        "resume structure, and content."
+                        "Review the missing required skills and "
+                        "make relevant experience explicit where "
+                        "you genuinely have it."
                     ),
                 }
             )
 
-        elif ats_score < 80:
+        # --------------------------------------------------------
+        # 2. Preferred skills
+        # --------------------------------------------------------
+
+        elif preferred_score < 75:
 
             recommendations.append(
                 {
                     "type": "ats",
+                    "title": "Improve Preferred Skill Coverage",
                     "priority": "medium",
                     "recommendation": (
-                        "The resume has reasonable alignment "
-                        "but can be improved."
+                        f"Preferred skill coverage is "
+                        f"{preferred_score:.0f}%. Some optional "
+                        f"job-specific skills are missing."
                     ),
                     "suggested_action": (
-                        "Focus on missing job-specific skills "
-                        "and making relevant experience "
-                        "more explicit."
+                        "If you have genuine experience with "
+                        "the missing preferred skills, highlight "
+                        "that experience in relevant projects "
+                        "or work."
+                    ),
+                }
+            )
+
+        # --------------------------------------------------------
+        # 3. Resume structure
+        # --------------------------------------------------------
+
+        if structure_score < 75:
+
+            recommendations.append(
+                {
+                    "type": "ats",
+                    "title": "Improve Resume Structure",
+                    "priority": "high",
+                    "recommendation": (
+                        f"Resume structure scored "
+                        f"{structure_score:.0f}%. Important "
+                        f"sections may not be clearly identified."
+                    ),
+                    "suggested_action": (
+                        "Use clear sections such as Skills, "
+                        "Education, Experience and Projects."
+                    ),
+                }
+            )
+
+        # --------------------------------------------------------
+        # 4. Content completeness
+        # --------------------------------------------------------
+
+        if content_score < 75:
+
+            recommendations.append(
+                {
+                    "type": "ats",
+                    "title": "Improve Resume Content",
+                    "priority": "medium",
+                    "recommendation": (
+                        f"Content completeness scored "
+                        f"{content_score:.0f}%. The resume may "
+                        f"need more relevant technical or "
+                        f"project detail."
+                    ),
+                    "suggested_action": (
+                        "Add concise technical details, project "
+                        "responsibilities and measurable outcomes "
+                        "where applicable."
+                    ),
+                }
+            )
+
+        # --------------------------------------------------------
+        # 5. Very low overall ATS score
+        # --------------------------------------------------------
+
+        if ats_score < 60 and not recommendations:
+
+            recommendations.append(
+                {
+                    "type": "ats",
+                    "title": "Improve Overall ATS Alignment",
+                    "priority": "high",
+                    "recommendation": (
+                        f"The overall ATS score is "
+                        f"{ats_score:.0f}%. Several areas of "
+                        f"the resume may need improvement."
+                    ),
+                    "suggested_action": (
+                        "Review required skills, resume "
+                        "structure and content completeness."
                     ),
                 }
             )
@@ -354,26 +469,33 @@ class RecommendationEngine:
         )
 
         return {
-            "skill_recommendations":
-                skill_recommendations,
+            "skill_recommendations": (
+                skill_recommendations
+            ),
 
-            "related_skill_recommendations":
-                related_recommendations,
+            "related_skill_recommendations": (
+                related_recommendations
+            ),
 
-            "structure_recommendations":
-                structure_recommendations,
+            "structure_recommendations": (
+                structure_recommendations
+            ),
 
-            "content_recommendations":
-                content_recommendations,
+            "content_recommendations": (
+                content_recommendations
+            ),
 
-            "ats_recommendations":
-                ats_recommendations,
+            "ats_recommendations": (
+                ats_recommendations
+            ),
 
-            "recommendations":
-                all_recommendations,
+            "recommendations": (
+                all_recommendations
+            ),
 
-            "total":
-                len(all_recommendations),
+            "total": len(
+                all_recommendations
+            ),
         }
 
 
