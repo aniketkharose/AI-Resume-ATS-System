@@ -1,583 +1,224 @@
+import re
+from html import escape
+
 import streamlit as st
 
+from backend.database.supabase_db import get_user_analyses
 
-def render_home():
 
-    # ========================================================
-    # PREMIUM HOME PAGE CSS
-    # ========================================================
+# ============================================================
+# HELPERS
+# ============================================================
 
+def _h(content: str) -> str:
+    """Flatten HTML so Streamlit never treats it as a code block."""
+    return "".join(line.strip() for line in content.splitlines())
+
+
+def _display_name(user) -> str:
+    email = getattr(user, "email", "") or ""
+    name = email.split("@")[0]
+    name = re.sub(r"[\d_.\-]+", " ", name).strip()
+    return escape(name.title()) if name else "there"
+
+
+def _load_activity(user):
+    """Return (total, latest_score) or None."""
+    try:
+        history = get_user_analyses(
+            user_id=str(user.id),
+            access_token=st.session_state.get("access_token"),
+            refresh_token=st.session_state.get("refresh_token"),
+        )
+        if not history:
+            return 0, 0.0
+        return len(history), float(history[0].get("ats_score", 0))
+    except Exception:
+        return None
+
+
+def _css():
     st.markdown(
         """
         <style>
 
-        /* ---------- GLOBAL ---------- */
-
-        .home-wrapper {
-            max-width: 1180px;
-            margin: 0 auto;
-        }
-
+        .hm-wrap { max-width: 1180px; margin: 0 auto; }
 
         /* ---------- HERO ---------- */
-
-        .hero-shell {
-            padding: 52px 48px;
-            border-radius: 30px;
-            border: 1px solid rgba(139, 92, 246, 0.25);
-
+        .hm-hero {
+            padding: 52px 48px; border-radius: 30px;
+            border: 1px solid rgba(139,92,246,0.25);
             background:
-                radial-gradient(
-                    circle at 90% 10%,
-                    rgba(139, 92, 246, 0.22),
-                    transparent 32%
-                ),
-                radial-gradient(
-                    circle at 10% 90%,
-                    rgba(99, 102, 241, 0.12),
-                    transparent 35%
-                ),
+                radial-gradient(circle at 90% 10%, rgba(139,92,246,0.24), transparent 34%),
+                radial-gradient(circle at 8% 92%, rgba(99,102,241,0.14), transparent 36%),
                 #0F1422;
-
-            box-shadow:
-                0 30px 80px rgba(0, 0, 0, 0.35);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.35);
         }
-
-
-        .hero-grid {
-            display: grid;
-            grid-template-columns: 1.45fr 0.75fr;
-            gap: 42px;
-            align-items: center;
+        .hm-hero-grid {
+            display: grid; grid-template-columns: 1.4fr 0.8fr;
+            gap: 44px; align-items: center;
         }
-
-
-        .hero-eyebrow {
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
-
-            padding: 8px 14px;
-            margin-bottom: 20px;
-
-            border-radius: 999px;
-
-            background: rgba(139, 92, 246, 0.10);
-            border: 1px solid rgba(139, 92, 246, 0.25);
-
-            color: #C4B5FD;
-
-            font-size: 13px;
-            font-weight: 650;
+        .hm-eyebrow {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 8px 14px; margin-bottom: 20px; border-radius: 999px;
+            background: rgba(139,92,246,0.10); border: 1px solid rgba(139,92,246,0.28);
+            color: #C4B5FD; font-size: 13px; font-weight: 650;
         }
-
-
-        .hero-title {
-            color: #F8FAFC;
-
-            font-size: 58px;
-            line-height: 1.04;
-
-            font-weight: 850;
-            letter-spacing: -2.8px;
-
-            margin-bottom: 22px;
+        .hm-eyebrow i {
+            width: 7px; height: 7px; border-radius: 50%; background: #A78BFA;
+            box-shadow: 0 0 10px #A78BFA; display: inline-block;
         }
-
-
-        .hero-gradient {
-            background:
-                linear-gradient(
-                    90deg,
-                    #A78BFA,
-                    #8B5CF6,
-                    #818CF8
-                );
-
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .hm-title {
+            color: #F8FAFC; font-size: 56px; line-height: 1.05;
+            font-weight: 850; letter-spacing: -2.6px; margin-bottom: 22px;
         }
-
-
-        .hero-description {
-            max-width: 690px;
-
-            color: #94A3B8;
-
-            font-size: 16px;
-            line-height: 1.75;
-
-            margin-bottom: 26px;
+        .hm-grad {
+            background: linear-gradient(90deg, #A78BFA, #8B5CF6, #818CF8);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
-
-
-        .hero-pills {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 9px;
+        .hm-desc {
+            max-width: 620px; color: #94A3B8; font-size: 16px;
+            line-height: 1.75; margin-bottom: 26px;
         }
-
-
-        .hero-pill {
-            padding: 8px 12px;
-
-            border-radius: 10px;
-
-            background: rgba(255,255,255,0.035);
-            border: 1px solid rgba(255,255,255,0.07);
-
+        .hm-pills { display: flex; flex-wrap: wrap; gap: 9px; }
+        .hm-pill {
+            padding: 8px 13px; border-radius: 10px; font-size: 12.5px;
+            background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.08);
             color: #CBD5E1;
-
-            font-size: 12px;
         }
 
-
-        /* ---------- SCORE CARD ---------- */
-
-        .score-card {
-            padding: 30px 24px;
-
-            border-radius: 24px;
-
-            background:
-                linear-gradient(
-                    145deg,
-                    rgba(255,255,255,0.055),
-                    rgba(255,255,255,0.02)
-                );
-
-            border: 1px solid rgba(255,255,255,0.08);
-
-            text-align: center;
-
-            box-shadow:
-                inset 0 1px 0 rgba(255,255,255,0.03);
+        /* ---------- PREVIEW CARD ---------- */
+        .hm-preview {
+            padding: 26px 24px; border-radius: 24px;
+            background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,255,255,0.09);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.30);
+        }
+        .hm-prev-label {
+            color: #94A3B8; font-size: 11px; font-weight: 700;
+            letter-spacing: 1.5px; text-align: center;
+        }
+        .hm-ring {
+            width: 128px; height: 128px; border-radius: 50%; margin: 18px auto 14px;
+            display: flex; align-items: center; justify-content: center;
+            background: conic-gradient(#8B5CF6 88%, rgba(255,255,255,0.08) 0);
+            box-shadow: 0 0 40px rgba(139,92,246,0.35);
+        }
+        .hm-ring-in {
+            width: 100px; height: 100px; border-radius: 50%; background: #0F1424;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .hm-ring-num { font-size: 34px; font-weight: 850; color: #F8FAFC; line-height: 1; }
+        .hm-ring-sub { font-size: 11px; color: #64748B; margin-top: 2px; }
+        .hm-status {
+            text-align: center; color: #6EE7B7; font-size: 13px; font-weight: 700; margin-bottom: 16px;
+        }
+        .hm-mini { margin-top: 10px; }
+        .hm-mini-head {
+            display: flex; justify-content: space-between;
+            font-size: 11.5px; color: #94A3B8; margin-bottom: 5px;
+        }
+        .hm-mini-bar { height: 6px; border-radius: 99px; background: #1E293B; overflow: hidden; }
+        .hm-mini-fill {
+            height: 100%; border-radius: 99px;
+            background: linear-gradient(90deg, #8B5CF6, #6366F1);
         }
 
-
-        .score-label {
-            color: #94A3B8;
-
-            font-size: 11px;
-            font-weight: 700;
-
-            letter-spacing: 1.5px;
-
-            margin-bottom: 12px;
+        /* ---------- STATS STRIP ---------- */
+        .hm-strip {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 22px;
         }
-
-
-        .score-number {
-            color: #F8FAFC;
-
-            font-size: 64px;
-            line-height: 1;
-
-            font-weight: 850;
+        .hm-strip-item {
+            padding: 16px 18px; border-radius: 16px; text-align: center;
+            background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06);
         }
+        .hm-strip-num { font-size: 24px; font-weight: 850; color: #F8FAFC; }
+        .hm-strip-lbl { font-size: 12px; color: #94A3B8; margin-top: 4px; }
 
-
-        .score-small {
-            color: #64748B;
-            font-size: 21px;
-            font-weight: 600;
+        /* ---------- ACTIVITY ---------- */
+        .hm-activity {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 18px; flex-wrap: wrap; margin-top: 22px;
+            padding: 18px 24px; border-radius: 18px;
+            background: linear-gradient(120deg, rgba(139,92,246,0.12), rgba(99,102,241,0.05));
+            border: 1px solid rgba(139,92,246,0.25);
         }
+        .hm-act-title { color: #F8FAFC; font-weight: 750; font-size: 15px; }
+        .hm-act-sub { color: #94A3B8; font-size: 12.5px; margin-top: 3px; }
+        .hm-act-stats { display: flex; gap: 26px; }
+        .hm-act-num { color: #F8FAFC; font-size: 22px; font-weight: 850; line-height: 1; }
+        .hm-act-lbl { color: #94A3B8; font-size: 11.5px; margin-top: 4px; }
 
-
-        .score-bar {
-            height: 7px;
-
-            margin: 20px 0 14px;
-
-            border-radius: 999px;
-
-            background: #1E293B;
-
-            overflow: hidden;
+        /* ---------- SECTIONS ---------- */
+        .hm-heading {
+            margin: 54px 0 8px; color: #F8FAFC; font-size: 28px;
+            font-weight: 800; letter-spacing: -0.7px;
         }
+        .hm-sub { color: #64748B; font-size: 14px; margin-bottom: 24px; }
 
-
-        .score-fill {
-            width: 88%;
-            height: 100%;
-
-            border-radius: 999px;
-
-            background:
-                linear-gradient(
-                    90deg,
-                    #8B5CF6,
-                    #6366F1
-                );
-        }
-
-
-        .score-status {
-            color: #A78BFA;
-
-            font-size: 13px;
-            font-weight: 650;
-        }
-
-
-        /* ---------- SECTION ---------- */
-
-        .section-heading {
-            margin-top: 54px;
-            margin-bottom: 8px;
-
-            color: #F8FAFC;
-
-            font-size: 28px;
-            font-weight: 800;
-
-            letter-spacing: -0.7px;
-        }
-
-
-        .section-description {
-            color: #64748B;
-
-            font-size: 14px;
-
-            margin-bottom: 25px;
-        }
-
-
-        /* ---------- FEATURE CARDS ---------- */
-
-        .feature-card {
-            min-height: 210px;
-
-            padding: 25px;
-
-            border-radius: 20px;
-
-            background: #111827;
-
+        /* ---------- FEATURES ---------- */
+        .hm-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+        .hm-feature {
+            padding: 24px; border-radius: 20px;
+            background: linear-gradient(145deg, rgba(17,24,39,0.98), rgba(15,23,42,0.98));
             border: 1px solid rgba(255,255,255,0.06);
-
-            transition:
-                transform 0.25s ease,
-                border-color 0.25s ease,
-                box-shadow 0.25s ease;
+            transition: all 0.25s ease;
         }
-
-
-        .feature-card:hover {
-            transform: translateY(-5px);
-
-            border-color:
-                rgba(139,92,246,0.32);
-
-            box-shadow:
-                0 18px 45px rgba(0,0,0,0.25);
+        .hm-feature:hover {
+            transform: translateY(-5px); border-color: rgba(139,92,246,0.35);
+            box-shadow: 0 18px 45px rgba(0,0,0,0.28);
         }
-
-
-        .feature-icon {
-            width: 46px;
-            height: 46px;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            border-radius: 14px;
-
-            background:
-                linear-gradient(
-                    145deg,
-                    rgba(139,92,246,0.20),
-                    rgba(99,102,241,0.08)
-                );
-
-            border:
-                1px solid rgba(139,92,246,0.20);
-
-            color: #C4B5FD;
-
-            font-size: 20px;
-
-            margin-bottom: 17px;
+        .hm-icon {
+            width: 48px; height: 48px; border-radius: 14px; font-size: 22px;
+            display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
+            background: linear-gradient(145deg, rgba(139,92,246,0.22), rgba(99,102,241,0.08));
+            border: 1px solid rgba(139,92,246,0.22);
         }
-
-
-        .feature-title {
-            color: #F8FAFC;
-
-            font-size: 17px;
-            font-weight: 750;
-
-            margin-bottom: 9px;
-        }
-
-
-        .feature-text {
-            color: #94A3B8;
-
-            font-size: 13px;
-
-            line-height: 1.7;
-        }
-
+        .hm-f-title { color: #F8FAFC; font-size: 17px; font-weight: 750; margin-bottom: 8px; }
+        .hm-f-text { color: #94A3B8; font-size: 13.5px; line-height: 1.7; }
 
         /* ---------- PROCESS ---------- */
-
-        .process-wrapper {
-            position: relative;
+        .hm-steps { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+        .hm-steps::before {
+            content: ""; position: absolute; top: 44px; left: 12%; right: 12%; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(139,92,246,0.45), transparent);
         }
-
-
-        .process-line {
-            position: absolute;
-
-            top: 27px;
-            left: 11%;
-            right: 11%;
-
-            height: 1px;
-
-            background:
-                linear-gradient(
-                    90deg,
-                    transparent,
-                    rgba(139,92,246,0.35),
-                    transparent
-                );
+        .hm-step {
+            position: relative; padding: 22px; border-radius: 18px;
+            background: #111827; border: 1px solid rgba(255,255,255,0.06);
+            transition: all 0.25s ease;
         }
-
-
-        .step-card {
-            position: relative;
-            z-index: 2;
-
-            padding: 23px;
-
-            min-height: 165px;
-
-            border-radius: 18px;
-
-            background: #111827;
-
-            border: 1px solid rgba(255,255,255,0.06);
-
-            transition:
-                transform 0.25s ease,
-                border-color 0.25s ease;
+        .hm-step:hover { transform: translateY(-4px); border-color: rgba(139,92,246,0.32); }
+        .hm-num {
+            width: 42px; height: 42px; border-radius: 50%; margin-bottom: 16px;
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(145deg, #8B5CF6, #6366F1);
+            color: #FFFFFF; font-size: 13px; font-weight: 800;
+            box-shadow: 0 8px 22px rgba(99,102,241,0.30);
         }
-
-
-        .step-card:hover {
-            transform: translateY(-4px);
-
-            border-color:
-                rgba(139,92,246,0.30);
-        }
-
-
-        .step-number {
-            width: 42px;
-            height: 42px;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            border-radius: 50%;
-
-            background:
-                linear-gradient(
-                    145deg,
-                    #8B5CF6,
-                    #6366F1
-                );
-
-            color: white;
-
-            font-size: 12px;
-            font-weight: 800;
-
-            margin-bottom: 17px;
-
-            box-shadow:
-                0 8px 22px rgba(99,102,241,0.22);
-        }
-
-
-        .step-title {
-            color: #F8FAFC;
-
-            font-size: 16px;
-            font-weight: 750;
-
-            margin-bottom: 7px;
-        }
-
-
-        .step-text {
-            color: #94A3B8;
-
-            font-size: 13px;
-
-            line-height: 1.65;
-        }
-
 
         /* ---------- CTA ---------- */
-
-        .cta-box {
-            margin-top: 52px;
-
-            padding: 35px 38px;
-
-            border-radius: 23px;
-
+        .hm-cta {
+            margin-top: 54px; padding: 36px 38px; border-radius: 24px; text-align: center;
             background:
-                radial-gradient(
-                    circle at 85% 20%,
-                    rgba(139,92,246,0.18),
-                    transparent 30%
-                ),
-                linear-gradient(
-                    120deg,
-                    rgba(139,92,246,0.14),
-                    rgba(99,102,241,0.06)
-                );
-
-            border:
-                1px solid rgba(139,92,246,0.22);
-
-            text-align: center;
+                radial-gradient(circle at 85% 20%, rgba(139,92,246,0.20), transparent 32%),
+                linear-gradient(120deg, rgba(139,92,246,0.14), rgba(99,102,241,0.06));
+            border: 1px solid rgba(139,92,246,0.24);
         }
+        .hm-cta-title { color: #F8FAFC; font-size: 26px; font-weight: 800; margin-bottom: 8px; }
+        .hm-cta-text { color: #94A3B8; font-size: 14.5px; line-height: 1.7; }
 
+        .hm-footer { padding: 36px 0 10px; text-align: center; color: #475569; font-size: 12px; }
 
-        .cta-title {
-            color: #F8FAFC;
-
-            font-size: 25px;
-            font-weight: 800;
-
-            margin-bottom: 8px;
-        }
-
-
-        .cta-text {
-            color: #94A3B8;
-
-            font-size: 14px;
-
-            line-height: 1.7;
-        }
-
-
-        /* ---------- BUTTONS ---------- */
-
-        div.stButton > button {
-            border-radius: 12px !important;
-            min-height: 46px !important;
-
-            font-weight: 700 !important;
-
-            transition:
-                transform 0.2s ease,
-                box-shadow 0.2s ease,
-                border-color 0.2s ease !important;
-        }
-
-
-        div.stButton > button:hover {
-            transform: translateY(-2px) !important;
-        }
-
-
-        /* PRIMARY */
-
-        div.stButton > button[kind="primary"] {
-            background:
-                linear-gradient(
-                    135deg,
-                    #8B5CF6,
-                    #6366F1
-                ) !important;
-
-            color: #FFFFFF !important;
-
-            border: 1px solid
-                rgba(167,139,250,0.45) !important;
-
-            box-shadow:
-                0 10px 28px
-                rgba(99,102,241,0.28) !important;
-        }
-
-
-        div.stButton > button[kind="primary"]:hover {
-            background:
-                linear-gradient(
-                    135deg,
-                    #9F67FF,
-                    #7167FF
-                ) !important;
-
-            box-shadow:
-                0 14px 34px
-                rgba(99,102,241,0.38) !important;
-        }
-
-
-        /* SECONDARY */
-
-        div.stButton > button:not([kind="primary"]) {
-            background:
-                rgba(255,255,255,0.035) !important;
-
-            color: #CBD5E1 !important;
-
-            border: 1px solid
-                rgba(255,255,255,0.10) !important;
-        }
-
-
-        div.stButton > button:not([kind="primary"]):hover {
-            border-color:
-                rgba(139,92,246,0.40) !important;
-
-            color: #F8FAFC !important;
-
-            background:
-                rgba(139,92,246,0.08) !important;
-        }
-
-
-        /* ---------- FOOTER ---------- */
-
-        .home-footer {
-            padding: 35px 0 12px;
-
-            text-align: center;
-
-            color: #475569;
-
-            font-size: 12px;
-        }
-
-
-        /* ---------- RESPONSIVE ---------- */
+        /* Home CTA buttons */
+        [class*="st-key-home_"] button { height: 52px !important; border-radius: 14px !important; font-size: 15px !important; }
 
         @media (max-width: 900px) {
-
-            .hero-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .hero-title {
-                font-size: 45px;
-            }
-
-            .process-line {
-                display: none;
-            }
+            .hm-hero { padding: 32px 24px; }
+            .hm-hero-grid, .hm-grid-3, .hm-steps { grid-template-columns: 1fr; }
+            .hm-strip { grid-template-columns: repeat(2, 1fr); }
+            .hm-title { font-size: 40px; letter-spacing: -1.6px; }
+            .hm-steps::before { display: none; }
         }
 
         </style>
@@ -586,83 +227,83 @@ def render_home():
     )
 
 
+def render_home():
+
+    _css()
+
+    user = st.session_state.get("user")
+    name = _display_name(user) if user else "there"
+
     # ========================================================
     # HERO
     # ========================================================
 
+    breakdown = [
+        ("Required Skills", 92),
+        ("Semantic Relevance", 85),
+        ("Resume Structure", 90),
+    ]
+
+    mini = "".join(
+        _h(
+            f"""
+            <div class="hm-mini">
+                <div class="hm-mini-head"><span>{label}</span><span>{value}%</span></div>
+                <div class="hm-mini-bar"><div class="hm-mini-fill" style="width:{value}%;"></div></div>
+            </div>
+            """
+        )
+        for label, value in breakdown
+    )
+
     st.markdown(
-        '<div class="home-wrapper">'
-        '<div class="hero-shell">'
-        '<div class="hero-grid">'
+        _h(
+            f"""
+            <div class="hm-wrap">
+            <div class="hm-hero">
+            <div class="hm-hero-grid">
 
-        '<div>'
+                <div>
+                    <div class="hm-eyebrow"><i></i>Welcome back, {name}</div>
+                    <div class="hm-title">Turn your resume into <span class="hm-grad">opportunity.</span></div>
+                    <div class="hm-desc">Understand how your resume matches a target job description with ATS scoring, intelligent skill matching and actionable resume insights.</div>
+                    <div class="hm-pills">
+                        <div class="hm-pill">🎯 ATS Scoring</div>
+                        <div class="hm-pill">🧠 Semantic Matching</div>
+                        <div class="hm-pill">✨ AI Insights</div>
+                        <div class="hm-pill">📄 PDF Reports</div>
+                    </div>
+                </div>
 
-        '<div class="hero-eyebrow">'
-        '✦ AI Resume Intelligence'
-        '</div>'
+                <div class="hm-preview">
+                    <div class="hm-prev-label">SAMPLE ATS ANALYSIS</div>
+                    <div class="hm-ring">
+                        <div class="hm-ring-in">
+                            <div class="hm-ring-num">88</div>
+                            <div class="hm-ring-sub">/ 100</div>
+                        </div>
+                    </div>
+                    <div class="hm-status">● Strong Resume Alignment</div>
+                    {mini}
+                </div>
 
-        '<div class="hero-title">'
-        'Turn your resume into '
-        '<span class="hero-gradient">opportunity.</span>'
-        '</div>'
-
-        '<div class="hero-description">'
-        'Understand how your resume matches a target job description '
-        'with ATS scoring, intelligent skill matching and actionable '
-        'resume insights.'
-        '</div>'
-
-        '<div class="hero-pills">'
-        '<div class="hero-pill">◈ ATS Scoring</div>'
-        '<div class="hero-pill">⌁ Semantic Matching</div>'
-        '<div class="hero-pill">✦ AI Insights</div>'
-        '<div class="hero-pill">✓ PDF Reports</div>'
-        '</div>'
-
-        '</div>'
-
-        '<div class="score-card">'
-
-        '<div class="score-label">'
-        'SAMPLE ATS ANALYSIS'
-        '</div>'
-
-        '<div class="score-number">'
-        '88<span class="score-small">/100</span>'
-        '</div>'
-
-        '<div class="score-bar">'
-        '<div class="score-fill"></div>'
-        '</div>'
-
-        '<div class="score-status">'
-        '● Strong Resume Alignment'
-        '</div>'
-
-        '</div>'
-
-        '</div>'
-        '</div>'
-        '</div>',
+            </div>
+            </div>
+            </div>
+            """
+        ),
         unsafe_allow_html=True,
     )
 
-
     # ========================================================
-    # HERO BUTTON — CENTER
+    # HERO BUTTONS
     # ========================================================
 
-    st.markdown(
-        "<div style='height:16px'></div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
-    hero_left, hero_center, hero_right = st.columns(
-        [1, 1.25, 1]
-    )
+    _, b1, b2, _ = st.columns([0.6, 1.2, 1.2, 0.6], gap="medium")
 
-    with hero_center:
-
+    with b1:
         if st.button(
             "🚀  Analyze My Resume",
             key="home_analyze_btn",
@@ -672,182 +313,168 @@ def render_home():
             st.session_state["current_page"] = "analyze"
             st.rerun()
 
+    with b2:
+        if st.button(
+            "📊  View History",
+            key="home_history_top",
+            use_container_width=True,
+        ):
+            st.session_state["current_page"] = "history"
+            st.rerun()
+
+    # ========================================================
+    # STATS STRIP
+    # ========================================================
+
+    st.markdown(
+        _h(
+            """
+            <div class="hm-strip">
+                <div class="hm-strip-item"><div class="hm-strip-num">5</div><div class="hm-strip-lbl">Scoring dimensions</div></div>
+                <div class="hm-strip-item"><div class="hm-strip-num">Hybrid</div><div class="hm-strip-lbl">Exact + semantic match</div></div>
+                <div class="hm-strip-item"><div class="hm-strip-num">PDF · DOCX</div><div class="hm-strip-lbl">Supported formats</div></div>
+                <div class="hm-strip-item"><div class="hm-strip-num">PDF</div><div class="hm-strip-lbl">Downloadable report</div></div>
+            </div>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
+
+    # ========================================================
+    # ACTIVITY (only if data available)
+    # ========================================================
+
+    activity = _load_activity(user) if user else None
+
+    if activity is not None:
+        total, latest = activity
+
+        if total == 0:
+            st.markdown(
+                _h(
+                    """
+                    <div class="hm-activity">
+                        <div>
+                            <div class="hm-act-title">You have not analyzed a resume yet</div>
+                            <div class="hm-act-sub">Upload your first resume to see your ATS score.</div>
+                        </div>
+                    </div>
+                    """
+                ),
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                _h(
+                    f"""
+                    <div class="hm-activity">
+                        <div>
+                            <div class="hm-act-title">Your activity</div>
+                            <div class="hm-act-sub">Pick up where you left off.</div>
+                        </div>
+                        <div class="hm-act-stats">
+                            <div><div class="hm-act-num">{total}</div><div class="hm-act-lbl">Analyses</div></div>
+                            <div><div class="hm-act-num">{latest:.0f}</div><div class="hm-act-lbl">Latest ATS score</div></div>
+                        </div>
+                    </div>
+                    """
+                ),
+                unsafe_allow_html=True,
+            )
 
     # ========================================================
     # FEATURES
     # ========================================================
 
-    st.markdown(
-        '<div class="section-heading">'
-        'Intelligence behind your resume'
-        '</div>'
-        '<div class="section-description">'
-        'More than a keyword checker — understand what your resume '
-        'communicates to an ATS and a target role.'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-
-
-    col1, col2, col3 = st.columns(
-        3,
-        gap="large",
-    )
-
-
     features = [
-        (
-            col1,
-            "◉",
-            "ATS Score",
-            "Get a structured compatibility score based on required "
-            "skills, preferred skills, relevance, structure and "
-            "content completeness.",
-        ),
-        (
-            col2,
-            "⌁",
-            "Hybrid Skill Matching",
-            "Combine exact skill matching with semantic similarity "
-            "to identify matched, related and missing skills from "
-            "a target role.",
-        ),
-        (
-            col3,
-            "✦",
-            "Actionable Insights",
-            "Discover strengths, missing skills and practical "
-            "recommendations without suggesting skills you do not "
-            "actually have.",
-        ),
+        ("🎯", "ATS Score", "Get a structured compatibility score based on required skills, preferred skills, relevance, structure and content completeness."),
+        ("🧠", "Hybrid Skill Matching", "Combine exact skill matching with semantic similarity to identify matched, related and missing skills from a target role."),
+        ("💡", "Actionable Insights", "Discover strengths, missing skills and practical recommendations without suggesting skills you do not actually have."),
+        ("📊", "Score Breakdown", "See exactly which dimension pulls your score up or down, with a clear percentage for each one."),
+        ("🗂️", "Saved History", "Every analysis is saved to your account, so you can revisit results and track your progress over time."),
+        ("📄", "PDF Report", "Generate a complete ATS report as a PDF that you can download and keep."),
     ]
 
+    cards = "".join(
+        _h(
+            f"""
+            <div class="hm-feature">
+                <div class="hm-icon">{icon}</div>
+                <div class="hm-f-title">{title}</div>
+                <div class="hm-f-text">{text}</div>
+            </div>
+            """
+        )
+        for icon, title, text in features
+    )
 
-    for column, icon, title, description in features:
-
-        with column:
-
-            st.markdown(
-                f'<div class="feature-card">'
-                f'<div class="feature-icon">{icon}</div>'
-                f'<div class="feature-title">{title}</div>'
-                f'<div class="feature-text">{description}</div>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-
+    st.markdown(
+        _h(
+            """
+            <div class="hm-heading">Intelligence behind your resume</div>
+            <div class="hm-sub">More than a keyword checker. Understand what your resume communicates to an ATS and a target role.</div>
+            """
+        )
+        + f'<div class="hm-grid-3">{cards}</div>',
+        unsafe_allow_html=True,
+    )
 
     # ========================================================
     # HOW IT WORKS
     # ========================================================
 
-    st.markdown(
-        '<div class="section-heading">'
-        'From resume to insight'
-        '</div>'
-        '<div class="section-description">'
-        'A simple four-stage analysis pipeline.'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-
-
-    st.markdown(
-        '<div class="process-wrapper">'
-        '<div class="process-line"></div>',
-        unsafe_allow_html=True,
-    )
-
-
-    step1, step2, step3, step4 = st.columns(
-        4,
-        gap="medium",
-    )
-
-
     steps = [
-        (
-            step1,
-            "01",
-            "Upload",
-            "Upload your resume in PDF or DOCX format.",
-        ),
-        (
-            step2,
-            "02",
-            "Understand",
-            "Extract sections, content and relevant skills.",
-        ),
-        (
-            step3,
-            "03",
-            "Match",
-            "Compare your resume against the target job description.",
-        ),
-        (
-            step4,
-            "04",
-            "Improve",
-            "Get an ATS score, feedback and recommendations.",
-        ),
+        ("01", "Upload", "Upload your resume in PDF or DOCX format."),
+        ("02", "Understand", "Extract sections, content and relevant skills."),
+        ("03", "Match", "Compare your resume against the target job description."),
+        ("04", "Improve", "Get an ATS score, feedback and recommendations."),
     ]
 
-
-    for column, number, title, description in steps:
-
-        with column:
-
-            st.markdown(
-                f'<div class="step-card">'
-                f'<div class="step-number">{number}</div>'
-                f'<div class="step-title">{title}</div>'
-                f'<div class="step-text">{description}</div>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-
-
-    st.markdown(
-        "</div>",
-        unsafe_allow_html=True,
+    step_cards = "".join(
+        _h(
+            f"""
+            <div class="hm-step">
+                <div class="hm-num">{num}</div>
+                <div class="hm-f-title">{title}</div>
+                <div class="hm-f-text">{text}</div>
+            </div>
+            """
+        )
+        for num, title, text in steps
     )
 
+    st.markdown(
+        _h(
+            """
+            <div class="hm-heading">From resume to insight</div>
+            <div class="hm-sub">A simple four-stage analysis pipeline.</div>
+            """
+        )
+        + f'<div class="hm-steps">{step_cards}</div>',
+        unsafe_allow_html=True,
+    )
 
     # ========================================================
     # CTA
     # ========================================================
 
     st.markdown(
-        '<div class="cta-box">'
-        '<div class="cta-title">'
-        'Ready to understand your resume?'
-        '</div>'
-        '<div class="cta-text">'
-        'Compare your resume with a target job description and '
-        'discover where you already match — and where you can improve.'
-        '</div>'
-        '</div>',
+        _h(
+            """
+            <div class="hm-cta">
+                <div class="hm-cta-title">Ready to understand your resume?</div>
+                <div class="hm-cta-text">Compare your resume with a target job description and discover where you already match, and where you can improve.</div>
+            </div>
+            """
+        ),
         unsafe_allow_html=True,
     )
 
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
-    # ========================================================
-    # CTA BUTTONS — CENTER
-    # ========================================================
+    _, c1, c2, _ = st.columns([0.6, 1.2, 1.2, 0.6], gap="medium")
 
-    st.markdown(
-        "<div style='height:12px'></div>",
-        unsafe_allow_html=True,
-    )
-
-
-    cta_left, cta_btn1, cta_btn2, cta_right = st.columns(
-        [1.2, 1.25, 1.25, 1.2]
-    )
-
-
-    with cta_btn1:
-
+    with c1:
         if st.button(
             "🚀  Start Analysis",
             key="home_cta_btn",
@@ -857,26 +484,20 @@ def render_home():
             st.session_state["current_page"] = "analyze"
             st.rerun()
 
-
-    with cta_btn2:
-
+    with c2:
         if st.button(
-            "📊  View History",
-            key="home_history_btn",
+            "👤  My Profile",
+            key="home_profile_btn",
             use_container_width=True,
         ):
-            st.session_state["current_page"] = "history"
+            st.session_state["current_page"] = "profile"
             st.rerun()
-
 
     # ========================================================
     # FOOTER
     # ========================================================
 
     st.markdown(
-        '<div class="home-footer">'
-        'AI Resume ATS &nbsp;•&nbsp; FastAPI &nbsp;•&nbsp; '
-        'Streamlit &nbsp;•&nbsp; NLP &nbsp;•&nbsp; Semantic AI'
-        '</div>',
+        '<div class="hm-footer">AI Resume ATS &nbsp;•&nbsp; FastAPI &nbsp;•&nbsp; Streamlit &nbsp;•&nbsp; NLP &nbsp;•&nbsp; Semantic AI</div>',
         unsafe_allow_html=True,
     )
