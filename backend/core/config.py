@@ -40,7 +40,7 @@ SUPPORTED_EXTENSIONS = {
 
 # NLP / AI Models
 
-SPACY_MODEL = "en_core_web_md"
+SPACY_MODEL = "en_core_web_sm"
 
 SENTENCE_TRANSFORMER_MODEL = os.getenv(
     "SENTENCE_TRANSFORMER_MODEL",
