@@ -1,5 +1,5 @@
 from typing import Any
-
+from functools import lru_cache
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -187,7 +187,7 @@ def _canonical_relation(text: str) -> set[str]:
 
     return related
 
-
+@lru_cache(maxsize=4096)
 def _lexical_similarity(
     text_a: str,
     text_b: str,

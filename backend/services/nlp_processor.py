@@ -29,7 +29,10 @@ class NLPProcessor:
             try:
                 import spacy
 
-                self.nlp = spacy.load(SPACY_MODEL)
+                self.nlp = spacy.load(
+                    SPACY_MODEL,
+                    disable=["tagger", "attribute_ruler", "lemmatizer"],
+                )
 
             except OSError as error:
                 raise NLPProcessorError(
